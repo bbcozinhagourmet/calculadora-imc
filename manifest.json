@@ -1,6 +1,6 @@
 {
-  "name": "Escala Futebol",
-  "short_name": "Escala",
+  "name": "Sorteio-futebol",
+  "short_name": "Sorteio",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
