@@ -1,6 +1,6 @@
 {
-  "name": "Sorteio-futebol",
-  "short_name": "Sorteio",
+  "name": "sorteio-futebol",
+  "short_name": "sorteio",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
