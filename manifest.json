@@ -1,7 +1,7 @@
 {
   "name": "sorteio-futebol",
   "short_name": "sorteio",
-  "start_url": "./index.html",
+  "start_url": "/sorteio-futebol-main/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0d47a1",
