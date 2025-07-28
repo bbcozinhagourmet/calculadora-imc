@@ -1,0 +1,105 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calculadora de IMC</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon-192.png" />
+  <meta name="theme-color" content="#0d47a1" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 15px;
+    }
+    h1 {
+      color: #0d47a1;
+    }
+    .container {
+      background-color: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      max-width: 400px;
+      width: 100%;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px;
+      width: 100%;
+      background-color: #0d47a1;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    #resultado {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Calculadora de IMC</h1>
+  <div class="container">
+    <label for="peso">Peso (kg):</label>
+    <input type="number" id="peso" step="0.1" />
+
+    <label for="altura">Altura (m):</label>
+    <input type="number" id="altura" step="0.01" />
+
+    <button onclick="calcularIMC()">Calcular IMC</button>
+
+    <div id="resultado"></div>
+  </div>
+
+  <script>
+    function calcularIMC() {
+      const peso = parseFloat(document.getElementById('peso').value);
+      const altura = parseFloat(document.getElementById('altura').value);
+      const resultado = document.getElementById('resultado');
+
+      if (isNaN(peso) || isNaN(altura) || altura <= 0) {
+        resultado.textContent = "Por favor, insira valores válidos.";
+        resultado.style.color = "red";
+        return;
+      }
+
+      const imc = peso / (altura * altura);
+      let classificacao = "";
+
+      if (imc < 18.5) classificacao = "Abaixo do peso";
+      else if (imc < 25) classificacao = "Peso normal";
+      else if (imc < 30) classificacao = "Sobrepeso";
+      else if (imc < 35) classificacao = "Obesidade grau I";
+      else if (imc < 40) classificacao = "Obesidade grau II";
+      else classificacao = "Obesidade grau III";
+
+      resultado.innerHTML = `Seu IMC é <strong>${imc.toFixed(2)}</strong> (${classificacao})`;
+      resultado.style.color = "#0d47a1";
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(() => console.log('Service Worker registrado!'));
+    }
+  </script>
+</body>
+</html>
