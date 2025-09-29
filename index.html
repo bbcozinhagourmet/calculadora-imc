@@ -1,69 +1,487 @@
-let
-    // PASSO 1: Referencia a tabela com os CNPJs
-    // Substitua "Tabela1" pelo nome da sua tabela
-    Fonte = Excel.CurrentWorkbook(){[Name="Tabela1"]}[Content],
-    
-    // PASSO 2: Garante que a coluna CNPJ seja texto
-    TipoAlterado = Table.TransformColumnTypes(Fonte,{{"CNPJ", type text}}),
-    
-    // PASSO 3: Limpa o CNPJ (remove pontos, barras e traços)
-    CNPJLimpo = Table.AddColumn(TipoAlterado, "CNPJ_Limpo", each 
-        Text.Remove([CNPJ], {" ", ".", "/", "-"}), type text),
-    
-    // PASSO 4: Valida se o CNPJ tem 14 dígitos
-    ValidaCNPJ = Table.AddColumn(CNPJLimpo, "CNPJ_Valido", each 
-        if Text.Length([CNPJ_Limpo]) = 14 then "Sim" else "Não", type text),
-    
-    // PASSO 5: Cria a função de consulta
-    ConsultarSimples = (cnpj as text) =>
-        let
-            // URL da consulta do Simples Nacional
-            url = "https://www8.receita.fazenda.gov.br/SimplesNacional/Aplicacoes/ATBHE/ConsultaOptante.app/ConsultarOpcao.aspx",
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta Simples Nacional - Fornecedores</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            color: #333;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-export {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-export:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 30px;
+            display: none;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        .results {
+            margin-top: 30px;
+        }
+
+        .result-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.2s;
+        }
+
+        .result-item:hover {
+            transform: translateX(5px);
+        }
+
+        .result-item.optante {
+            background: #d4edda;
+            border-left: 5px solid #28a745;
+        }
+
+        .result-item.nao-optante {
+            background: #f8d7da;
+            border-left: 5px solid #dc3545;
+        }
+
+        .result-item.verificar {
+            background: #fff3cd;
+            border-left: 5px solid #ffc107;
+        }
+
+        .result-item.erro {
+            background: #f0f0f0;
+            border-left: 5px solid #6c757d;
+        }
+
+        .cnpj {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .status {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .status.optante {
+            background: #28a745;
+            color: white;
+        }
+
+        .status.nao-optante {
+            background: #dc3545;
+            color: white;
+        }
+
+        .status.verificar {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .status.erro {
+            background: #6c757d;
+            color: white;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .info-box p {
+            margin: 5px 0;
+            color: #333;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .summary-card {
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+        }
+
+        .summary-card.total {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .summary-card.optante {
+            background: #28a745;
+        }
+
+        .summary-card.nao-optante {
+            background: #dc3545;
+        }
+
+        .summary-card.verificar {
+            background: #ffc107;
+        }
+
+        .summary-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .summary-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Consulta Simples Nacional</h1>
+        <p class="subtitle">Verifique se seus fornecedores são optantes pelo Simples Nacional</p>
+
+        <div class="info-box">
+            <p><strong>📌 Como usar:</strong></p>
+            <p>1. Cole os CNPJs abaixo (um por linha, com ou sem formatação)</p>
+            <p>2. Clique em "Consultar" e aguarde o processamento</p>
+            <p>3. Exporte os resultados para Excel quando finalizar</p>
+        </div>
+
+        <div class="input-section">
+            <label for="cnpjInput">CNPJs dos Fornecedores:</label>
+            <textarea id="cnpjInput" placeholder="Cole os CNPJs aqui, um por linha. Exemplo:&#10;12.345.678/0001-90&#10;98.765.432/0001-10&#10;11222333000144"></textarea>
+        </div>
+
+        <div class="button-group">
+            <button class="btn-primary" onclick="iniciarConsulta()" id="btnConsultar">
+                🔍 Consultar
+            </button>
+            <button class="btn-secondary" onclick="limparResultados()">
+                🗑️ Limpar
+            </button>
+            <button class="btn-export" onclick="exportarParaExcel()" id="btnExportar" disabled>
+                📊 Exportar para Excel
+            </button>
+        </div>
+
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-fill" id="progressFill">0%</div>
+        </div>
+
+        <div class="summary" id="summary" style="display: none;"></div>
+
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        let resultados = [];
+
+        function limparCNPJ(cnpj) {
+            return cnpj.replace(/[^\d]/g, '');
+        }
+
+        function formatarCNPJ(cnpj) {
+            cnpj = limparCNPJ(cnpj);
+            return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+        }
+
+        async function consultarCNPJ(cnpj) {
+            const cnpjLimpo = limparCNPJ(cnpj);
             
-            // Tenta fazer a consulta
-            Resultado = try 
-                let
-                    // Faz a requisição HTTP
-                    Origem = Web.Page(
-                        Web.Contents(
-                            url,
-                            [
-                                Query=[cnpj=cnpj],
-                                Headers=[
-                                    #"User-Agent"="Mozilla/5.0",
-                                    #"Content-Type"="application/x-www-form-urlencoded"
-                                ]
-                            ]
-                        )
-                    ),
-                    
-                    // Extrai o texto da página
-                    Tabelas = Origem{0}[Data],
-                    TextoDaPagina = Table.ToRows(Tabelas),
-                    TextoCompleto = Text.Combine(List.Transform(TextoDaPagina, each Text.Combine(_, " "))),
-                    
-                    // Verifica se é optante
-                    EhOptante = 
-                        if Text.Contains(TextoCompleto, "Sim", Comparer.OrdinalIgnoreCase) or
-                           Text.Contains(TextoCompleto, "optante pelo Simples Nacional", Comparer.OrdinalIgnoreCase)
-                        then "OPTANTE"
-                        else if Text.Contains(TextoCompleto, "Não", Comparer.OrdinalIgnoreCase) or
-                                Text.Contains(TextoCompleto, "não optante", Comparer.OrdinalIgnoreCase)
-                        then "NÃO OPTANTE"
-                        else "Verificar manualmente"
-                in
-                    EhOptante
-            otherwise "Erro na consulta"
-        in
-            Resultado,
-    
-    // PASSO 6: Aplica a consulta apenas para CNPJs válidos
-    ConsultaSimples = Table.AddColumn(ValidaCNPJ, "Status_Simples_Nacional", each 
-        if [CNPJ_Valido] = "Sim" 
-        then ConsultarSimples([CNPJ_Limpo])
-        else "CNPJ Inválido", type text),
-    
-    // PASSO 7: Remove colunas auxiliares
-    RemoveColunas = Table.RemoveColumns(ConsultaSimples,{"CNPJ_Limpo", "CNPJ_Valido"})
-in
-    RemoveColunas
+            if (cnpjLimpo.length !== 14) {
+                return { cnpj: cnpj, status: 'CNPJ Inválido', classe: 'erro' };
+            }
+
+            try {
+                // Usando API pública da ReceitaWS que retorna dados do CNPJ
+                const response = await fetch(`https://www.receitaws.com.br/v1/cnpj/${cnpjLimpo}`);
+                const data = await response.json();
+
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                if (data.status === 'ERROR') {
+                    return { cnpj: formatarCNPJ(cnpj), status: 'Erro na consulta', classe: 'erro' };
+                }
+
+                // Verifica se é Simples Nacional
+                const simplesNacional = data.simples_nacional || data.simples || '';
+                const porte = data.porte || '';
+                
+                let status, classe;
+                
+                if (simplesNacional && simplesNacional.toString().toLowerCase().includes('sim')) {
+                    status = 'OPTANTE';
+                    classe = 'optante';
+                } else if (simplesNacional && simplesNacional.toString().toLowerCase().includes('não')) {
+                    status = 'NÃO OPTANTE';
+                    classe = 'nao-optante';
+                } else if (porte && (porte.includes('ME') || porte.includes('EPP') || porte.includes('MICRO'))) {
+                    status = 'Verificar manualmente';
+                    classe = 'verificar';
+                } else {
+                    status = 'NÃO OPTANTE';
+                    classe = 'nao-optante';
+                }
+
+                return { 
+                    cnpj: formatarCNPJ(cnpj), 
+                    status: status, 
+                    classe: classe,
+                    razaoSocial: data.nome || 'N/A'
+                };
+
+            } catch (error) {
+                return { cnpj: formatarCNPJ(cnpj), status: 'Erro na consulta', classe: 'erro' };
+            }
+        }
+
+        async function iniciarConsulta() {
+            const input = document.getElementById('cnpjInput').value;
+            const cnpjs = input.split('\n').filter(c => c.trim() !== '');
+
+            if (cnpjs.length === 0) {
+                alert('Por favor, insira pelo menos um CNPJ');
+                return;
+            }
+
+            const btnConsultar = document.getElementById('btnConsultar');
+            const btnExportar = document.getElementById('btnExportar');
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            const resultsDiv = document.getElementById('results');
+
+            btnConsultar.disabled = true;
+            btnExportar.disabled = true;
+            progressBar.style.display = 'block';
+            resultsDiv.innerHTML = '';
+            resultados = [];
+
+            for (let i = 0; i < cnpjs.length; i++) {
+                const resultado = await consultarCNPJ(cnpjs[i]);
+                resultados.push(resultado);
+
+                const progresso = ((i + 1) / cnpjs.length * 100).toFixed(0);
+                progressFill.style.width = progresso + '%';
+                progressFill.textContent = progresso + '%';
+
+                adicionarResultado(resultado);
+            }
+
+            btnConsultar.disabled = false;
+            btnExportar.disabled = false;
+            progressBar.style.display = 'none';
+            
+            mostrarResumo();
+        }
+
+        function adicionarResultado(resultado) {
+            const resultsDiv = document.getElementById('results');
+            const item = document.createElement('div');
+            item.className = `result-item ${resultado.classe}`;
+            
+            const cnpjDiv = document.createElement('div');
+            cnpjDiv.innerHTML = `
+                <div class="cnpj">${resultado.cnpj}</div>
+                ${resultado.razaoSocial ? `<div style="font-size: 0.9em; color: #666;">${resultado.razaoSocial}</div>` : ''}
+            `;
+            
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${resultado.classe}`;
+            statusDiv.textContent = resultado.status;
+            
+            item.appendChild(cnpjDiv);
+            item.appendChild(statusDiv);
+            resultsDiv.appendChild(item);
+        }
+
+        function mostrarResumo() {
+            const summaryDiv = document.getElementById('summary');
+            summaryDiv.style.display = 'grid';
+            
+            const total = resultados.length;
+            const optantes = resultados.filter(r => r.classe === 'optante').length;
+            const naoOptantes = resultados.filter(r => r.classe === 'nao-optante').length;
+            const verificar = resultados.filter(r => r.classe === 'verificar').length;
+            
+            summaryDiv.innerHTML = `
+                <div class="summary-card total">
+                    <div class="summary-number">${total}</div>
+                    <div class="summary-label">Total Consultado</div>
+                </div>
+                <div class="summary-card optante">
+                    <div class="summary-number">${optantes}</div>
+                    <div class="summary-label">Optantes</div>
+                </div>
+                <div class="summary-card nao-optante">
+                    <div class="summary-number">${naoOptantes}</div>
+                    <div class="summary-label">Não Optantes</div>
+                </div>
+                <div class="summary-card verificar">
+                    <div class="summary-number">${verificar}</div>
+                    <div class="summary-label">Verificar</div>
+                </div>
+            `;
+        }
+
+        function limparResultados() {
+            document.getElementById('cnpjInput').value = '';
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('summary').style.display = 'none';
+            document.getElementById('btnExportar').disabled = true;
+            resultados = [];
+        }
+
+        function exportarParaExcel() {
+            if (resultados.length === 0) {
+                alert('Não há resultados para exportar');
+                return;
+            }
+
+            let csv = 'CNPJ;Razão Social;Status Simples Nacional\n';
+            resultados.forEach(r => {
+                csv += `${r.cnpj};${r.razaoSocial || 'N/A'};${r.status}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `consulta_simples_nacional_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+    </script>
+</body>
+</html>
